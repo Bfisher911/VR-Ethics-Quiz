@@ -1,0 +1,427 @@
+<!-- 
+  ============================================================================
+  QUIZ SECTION
+  - This section is the target for the quiz injection.
+  - The JavaScript below will populate this container.
+  ============================================================================
+-->
+<section id="quiz-placeholder" class="py-16 sm:py-24 bg-[#111] font-sans overflow-hidden">
+  <!-- The entire quiz will be dynamically injected here by the script. -->
+</section>
+
+<script>
+  // Wait for the DOM to be fully loaded before initializing the quiz
+  document.addEventListener('DOMContentLoaded', () => {
+
+    /**
+     * @namespace Quiz
+     * @description Main object to encapsulate all quiz functionality,
+     * state, and data. This keeps the global namespace clean.
+     */
+    const Quiz = {
+      // ========================================================================
+      // STATE & CONFIGURATION
+      // ========================================================================
+
+      /** @property {HTMLElement} container - The DOM element where the quiz will be rendered. */
+      container: document.getElementById('quiz-placeholder'),
+
+      /** @property {Array<Object>} questions - The bank of questions for the quiz. */
+      questions: [
+          {
+              prompt: "Embodiment in VR primarily refers to…",
+              options: ["Feeling present in a virtual body", "Streaming gameplay", "GPU performance", "Latency reduction"],
+              answerIndex: 0,
+              explanation: "Embodiment is the sensation of owning and controlling a virtual avatar as if it were your own physical body."
+          },
+          {
+              prompt: "Which biometric modality is NOT typically tracked by common VR headsets?",
+              options: ["Eye-movement", "Gait", "DNA", "Voiceprint"],
+              answerIndex: 2,
+              explanation: "Modern headsets record eyes, gait via IMU, and voice; DNA capture is impossible in-device."
+          },
+          {
+              prompt: "In Neal Stephenson's 'Snow Crash', low-bandwidth avatars are mostly…",
+              options: ["Revered heroes", "Blurry & socially marginalized", "Invisible spies", "Weaponized bots"],
+              answerIndex: 1,
+              explanation: "In the Metaverse of 'Snow Crash', high-quality avatars cost money, creating a visual class divide where poor users had grainy, black-and-white avatars."
+          },
+          {
+              prompt: "Apple Vision Pro stores raw gaze data…",
+              options: ["On-device in the Secure Enclave", "On a cloud server", "In a blockchain", "On social media"],
+              answerIndex: 0,
+              explanation: "Apple has emphasized privacy by processing sensitive biometric data like eye-tracking locally within the device's Secure Enclave."
+          },
+          {
+              prompt: "A 2023 Chinese court ruling treated NFTs primarily as…",
+              options: ["Toys", "Property", "Spam", "Currency"],
+              answerIndex: 1,
+              explanation: "The Hangzhou Internet Court recognized NFTs as virtual property protected by law, a significant ruling for digital assets in China."
+          },
+          {
+              prompt: "The 'Black Mirror' episode 'San Junipero' raises which ethical question most sharply?",
+              options: ["Algorithmic bias", "Post-mortem personhood", "Network neutrality", "DRM evasion"],
+              answerIndex: 1,
+              explanation: "'San Junipero' explores the concept of digital consciousness after death, questioning the rights and nature of a person who exists only as data."
+          },
+          {
+              prompt: "Virtual sexual harassment cases in Meta’s Horizon Worlds highlight gaps in…",
+              options: ["Legal definitions of assault", "Network latency regulation", "GPU warranties", "Employment contracts"],
+              answerIndex: 0,
+              explanation: "These incidents have sparked debate on whether virtual actions can constitute legally recognized harassment or assault, challenging existing legal frameworks."
+          },
+          {
+              prompt: "The metaphor 'data is the new skin' primarily critiques…",
+              options: ["Graphics quality", "Biometric privacy erosion", "VR motion sickness", "Battery life"],
+              answerIndex: 1,
+              explanation: "This phrase suggests that our biometric data is becoming as integral and vulnerable as our own skin, exposing us to new forms of surveillance and identity theft."
+          },
+          {
+              prompt: "Which sci-fi work locks players in a lethal game world without their consent?",
+              options: ["Ready Player One", "Sword Art Online", "The Matrix", "Otherland"],
+              answerIndex: 1,
+              explanation: "In 'Sword Art Online', players are trapped in a VRMMORPG where death in the game means death in the real world."
+          },
+          {
+              prompt: "Pay-to-win economies in VR echo which 'Snow Crash' concept?",
+              options: ["Smartdust", "Metaverse class stratification", "Neuromancer ICE", "Haptic feedback"],
+              answerIndex: 1,
+              explanation: "The ability to buy in-game advantages creates a clear divide between players, mirroring the socioeconomic hierarchy of the 'Snow Crash' Metaverse."
+          }
+      ],
+
+      /** @property {number} currentQuestionIndex - The index of the currently displayed question. */
+      currentQuestionIndex: 0,
+      
+      /** @property {number} score - The user's score for the current quiz attempt. */
+      score: 0,
+      
+      /** @property {number|null} bestScore - The user's highest score, loaded from localStorage. */
+      bestScore: null,
+      
+      /** @property {boolean} isAnswered - Flag to prevent re-answering a question. */
+      isAnswered: false,
+
+      // ========================================================================
+      // INITIALIZATION & RENDERING
+      // ========================================================================
+
+      /**
+       * Initializes the quiz.
+       */
+      init() {
+        this.bestScore = parseInt(localStorage.getItem('vrQuizBestScore')) || 0;
+        this.renderIntro();
+        this.container.addEventListener('click', this.handleInteraction.bind(this));
+      },
+
+      /**
+       * Renders the initial welcome/start screen for the quiz.
+       */
+      renderIntro() {
+        this.container.innerHTML = `
+          <div class="mx-auto max-w-3xl text-center animate-fade-in-up">
+            <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl font-orbitron">Test Your Knowledge</h2>
+            <p class="mt-4 text-lg leading-8 text-gray-300">
+              You've read the infographic, now see how much you've learned about the emerging ethics of virtual reality.
+            </p>
+            <p class="mt-4 text-base text-gray-400">Best Score: ${this.bestScore} / ${this.questions.length}</p>
+            <div class="mt-10 flex items-center justify-center gap-x-6">
+              <button data-action="start" class="btn-gradient rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">
+                Start Quiz
+              </button>
+            </div>
+          </div>
+        `;
+      },
+
+      /**
+       * Renders the main quiz interface into the container.
+       */
+      renderQuiz() {
+        this.container.innerHTML = `
+          <div id="quiz-wrapper" class="mx-auto max-w-3xl animate-fade-in-up">
+            <!-- Progress Bar -->
+            <div class="mb-8">
+              <div class="flex justify-between mb-2 text-sm font-medium text-gray-400">
+                <span>Question ${this.currentQuestionIndex + 1} of ${this.questions.length}</span>
+                <span>Score: ${this.score}</span>
+              </div>
+              <div class="w-full bg-gray-700/50 rounded-full h-2.5">
+                <div id="progress-bar" class="bg-sky-500 h-2.5 rounded-full transition-all duration-500 ease-out" style="width: ${((this.currentQuestionIndex) / this.questions.length) * 100}%"></div>
+              </div>
+            </div>
+
+            <!-- Question Card -->
+            <div id="question-card" class="relative rounded-2xl bg-white/5 backdrop-blur-lg shadow-2xl ring-1 ring-white/10">
+              <div class="p-6 sm:p-8">
+                <p id="question-prompt" class="text-lg font-semibold leading-7 text-sky-300 font-orbitron"></p>
+                <div id="options-container" role="radiogroup" class="mt-6 space-y-4">
+                  <!-- Options will be injected here -->
+                </div>
+              </div>
+              <div id="feedback-panel" class="px-6 sm:px-8 border-t border-white/10">
+                <!-- Feedback will be injected here -->
+              </div>
+              <div class="p-6 flex justify-end">
+                <button id="submit-btn" data-action="submit" disabled class="btn-gradient rounded-md px-3.5 py-2 text-sm font-semibold text-white shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 disabled:bg-gray-600 disabled:shadow-none disabled:transform-none disabled:cursor-not-allowed">Submit</button>
+                <button id="next-btn" data-action="next" class="hidden btn-gradient-indigo rounded-md px-3.5 py-2 text-sm font-semibold text-white shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400">Next</button>
+              </div>
+            </div>
+          </div>
+        `;
+        this.loadQuestion();
+      },
+
+      /**
+       * Loads the current question's data into the DOM.
+       */
+      loadQuestion() {
+        this.isAnswered = false;
+        const question = this.questions[this.currentQuestionIndex];
+        
+        document.getElementById('question-prompt').textContent = question.prompt;
+        const optionsContainer = document.getElementById('options-container');
+        
+        optionsContainer.innerHTML = question.options.map((option, index) => `
+          <label class="option-label flex items-center p-4 rounded-lg bg-white/5 has-[:checked]:bg-sky-900/50 has-[:checked]:ring-2 has-[:checked]:ring-sky-400 cursor-pointer">
+            <input type="radio" name="quiz-option" value="${index}" class="h-4 w-4 text-sky-600 bg-gray-700 border-gray-600 focus:ring-sky-500 focus:ring-2">
+            <span class="ml-4 text-base font-medium text-gray-200">${option}</span>
+          </label>
+        `).join('');
+
+        optionsContainer.querySelectorAll('input[name="quiz-option"]').forEach(radio => {
+            radio.addEventListener('change', () => document.getElementById('submit-btn').disabled = false);
+        });
+      },
+
+      /**
+       * Renders the final score screen.
+       */
+      renderFinalScreen() {
+        const isNewBestScore = this.score > this.bestScore;
+        if (isNewBestScore) {
+          this.bestScore = this.score;
+          localStorage.setItem('vrQuizBestScore', this.bestScore);
+        }
+
+        const shareText = `I scored ${this.score}/${this.questions.length} on the VR Ethics Quiz! Can you beat my score?`;
+
+        this.container.innerHTML = `
+          <div id="final-score-card" class="mx-auto max-w-3xl text-center animate-fade-in-up">
+            <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl font-orbitron">Quiz Complete!</h2>
+            ${isNewBestScore ? `<p class="mt-2 text-2xl text-yellow-300 animate-pulse">🎉<span class="sr-only">Confetti emoji</span> New Best Score! 🎉</p>` : ''}
+            
+            <div class="score-display my-6">
+              <p class="text-6xl font-bold text-sky-400">${this.score} / ${this.questions.length}</p>
+            </div>
+
+            <p class="mt-2 text-lg text-gray-400">Your all-time best is ${this.bestScore} / ${this.questions.length}</p>
+
+            <div class="mt-10 flex items-center justify-center gap-x-4">
+              <button data-action="retake" class="btn-gradient-indigo rounded-md px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
+                <i class="fas fa-redo mr-2"></i>Retake Quiz
+              </button>
+              <button data-action="copy-score" class="rounded-md bg-gray-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 transition-colors duration-200">
+                <i class="fas fa-share-alt mr-2"></i><span id="copy-text">Copy Score</span>
+              </button>
+            </div>
+            <textarea id="share-text-area" class="sr-only">${shareText}</textarea>
+          </div>
+        `;
+      },
+
+      // ========================================================================
+      // EVENT HANDLING & LOGIC
+      // ========================================================================
+
+      handleInteraction(e) {
+        const action = e.target.closest('[data-action]')?.dataset.action;
+        if (!action) return;
+        const actions = {
+          start: this.startQuiz, submit: this.handleSubmit, next: this.handleNext,
+          retake: this.resetQuiz, 'copy-score': this.copyScoreToClipboard
+        };
+        actions[action]?.call(this);
+      },
+
+      startQuiz() {
+        this.container.scrollIntoView({ behavior: 'smooth' });
+        this.renderQuiz();
+      },
+
+      handleSubmit() {
+        if (this.isAnswered) return;
+        const selectedOption = this.container.querySelector('input[name="quiz-option"]:checked');
+        if (!selectedOption) return;
+
+        this.isAnswered = true;
+        const answerIndex = parseInt(selectedOption.value);
+        const question = this.questions[this.currentQuestionIndex];
+        const isCorrect = answerIndex === question.answerIndex;
+
+        const feedbackPanel = document.getElementById('feedback-panel');
+        const questionCard = document.getElementById('question-card');
+        
+        if (isCorrect) {
+          this.score++;
+          feedbackPanel.innerHTML = `<div class="text-green-400"><h3 class="font-bold"><i class="fas fa-check-circle mr-2"></i>Correct!</h3><p class="text-sm text-gray-300 mt-1">${question.explanation}</p></div>`;
+          questionCard.classList.add('animate-pulse-correct');
+        } else {
+          feedbackPanel.innerHTML = `<div class="text-red-400"><h3 class="font-bold"><i class="fas fa-times-circle mr-2"></i>Incorrect</h3><p class="text-sm text-gray-300 mt-1">${question.explanation}</p></div>`;
+          questionCard.classList.add('animate-shake');
+        }
+
+        feedbackPanel.classList.add('is-visible');
+        document.getElementById('submit-btn').classList.add('hidden');
+        document.getElementById('next-btn').classList.remove('hidden');
+        this.container.querySelectorAll('input[name="quiz-option"]').forEach(radio => radio.disabled = true);
+        
+        const progressBar = document.getElementById('progress-bar');
+        progressBar.style.width = `${((this.currentQuestionIndex + 1) / this.questions.length) * 100}%`;
+      },
+
+      handleNext() {
+        document.getElementById('question-card').classList.remove('animate-pulse-correct', 'animate-shake');
+        this.currentQuestionIndex++;
+        if (this.currentQuestionIndex < this.questions.length) {
+          this.loadQuestion();
+          document.getElementById('feedback-panel').classList.remove('is-visible');
+          document.getElementById('submit-btn').classList.remove('hidden');
+          document.getElementById('submit-btn').disabled = true;
+          document.getElementById('next-btn').classList.add('hidden');
+          
+          this.container.querySelector('.flex.justify-between span:first-child').textContent = `Question ${this.currentQuestionIndex + 1} of ${this.questions.length}`;
+          this.container.querySelector('.flex.justify-between span:last-child').textContent = `Score: ${this.score}`;
+        } else {
+          this.renderFinalScreen();
+        }
+      },
+
+      resetQuiz() {
+        this.currentQuestionIndex = 0;
+        this.score = 0;
+        this.isAnswered = false;
+        this.renderQuiz();
+      },
+
+      copyScoreToClipboard() {
+        const textArea = document.getElementById('share-text-area');
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          const copyTextSpan = document.getElementById('copy-text');
+          if(copyTextSpan) {
+            copyTextSpan.textContent = 'Copied!';
+            setTimeout(() => { copyTextSpan.textContent = 'Copy Score'; }, 2000);
+          }
+        } catch (err) {
+          console.error('Failed to copy text: ', err);
+        }
+      }
+    };
+
+    Quiz.init();
+  });
+</script>
+
+<!-- 
+  ============================================================================
+  EMBEDDED STYLES (VISUALLY ENHANCED)
+  ============================================================================
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+
+  #quiz-placeholder {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(-45deg, #111827, #1c2a41, #111827, #374151);
+    background-size: 400% 400%;
+    animation: gradient-animation 15s ease infinite;
+  }
+  .font-orbitron { font-family: 'Orbitron', sans-serif; }
+
+  @keyframes gradient-animation {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
+    20%, 40%, 60%, 80% { transform: translateX(6px); }
+  }
+  .animate-shake { animation: shake 0.5s ease-in-out; }
+
+  @keyframes pulse-correct {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); }
+    70% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+  }
+  .animate-pulse-correct { animation: pulse-correct 0.6s ease-in-out; }
+
+  .btn-gradient, .btn-gradient-indigo {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .btn-gradient:hover, .btn-gradient-indigo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 20px -4px rgba(0,0,0,0.4);
+  }
+  .btn-gradient { background-image: linear-gradient(to right, #0ea5e9, #2563eb); }
+  .btn-gradient-indigo { background-image: linear-gradient(to right, #6366f1, #8b5cf6); }
+
+  .option-label {
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid transparent;
+  }
+  .option-label:hover {
+    transform: translateY(-2px);
+    background-color: rgba(255, 255, 255, 0.07);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  }
+  .option-label.has-[:checked] {
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+  }
+
+  #feedback-panel {
+    transition: max-height 0.5s ease-in-out, opacity 0.5s ease, padding 0.5s ease, margin 0.5s ease;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+  }
+  #feedback-panel.is-visible {
+    max-height: 200px;
+    opacity: 1;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    margin-top: 1.5rem; /* Corresponds to p-6 */
+  }
+
+  #final-score-card .score-display {
+    position: relative;
+    display: inline-block;
+    z-index: 1;
+  }
+  #final-score-card .score-display::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200%;
+    padding-bottom: 200%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.2) 0%, rgba(56, 189, 248, 0) 65%);
+    transform: translate(-50%, -50%);
+    z-index: -1;
+  }
+</style>
